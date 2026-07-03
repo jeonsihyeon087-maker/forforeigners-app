@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>For Foreigners</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS & JS (지도 기능) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans KR', 'sans-serif'],
+                    },
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        primary: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 모바일 앱 느낌을 위한 기본 스타일링 */
+        body {
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+        }
+        /* 스크롤바 숨기기 */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* 앱 컨테이너 (모바일 화면 시뮬레이션) */
+        #app-container {
+            width: 100%;
+            height: 100vh;
+            max-width: 430px; /* iPhone Pro Max 너비 기준 */
+            background-color: #030712;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            color: white;
+        }
+
+        @media (min-width: 431px) {
+            #app-container {
+                height: 850px;
+                border-radius: 40px;
+                border: 8px solid #1f2937;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        .view-section {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .view-section.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 바코드 패턴 애니메이션 (단순화) */
+        .barcode-line {
+            width: 3px;
+            height: 100%;
+            background: white;
+            display: inline-block;
+            margin: 0 1px;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-primary selection:text-white">
+
+    <!-- 토스트 알림 (기존 alert 대체용) -->
+    <div id="toast" class="fixed top-10 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-gray-700 text-white px-6 py-3 rounded-full text-sm shadow-2xl z-[100] transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>
+        <span id="toast-msg">메시지</span>
+    </div>
+
+    <div id="app-container">
+        
+        <!-- ================= LOGIN VIEW ================= -->
+        <div id="view-login" class="view-section active p-6 justify-center bg-gray-950 relative">
+            <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-20 pointer-events-none">
+                <div class="absolute top-[-10%] left-[-20%] w-[300px] h-[300px] bg-primary rounded-full blur-[100px]"></div>
+                <div class="absolute bottom-[-10%] right-[-20%] w-[300px] h-[300px] bg-indigo-600 rounded-full blur-[100px]"></div>
+            </div>
+
+            <div class="z-10 flex flex-col items-center w-full">
+                <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
+                    <i data-lucide="globe-2" class="w-10 h-10 text-white"></i>
+                </div>
+                <h1 class="text-3xl font-bold mb-2 tracking-tight">For Foreigners</h1>
+                <p class="text-gray-400 text-sm mb-12 text-center" data-i18n="app_desc">한국 생활의 모든 것을 하나로</p>
+
+                <div class="w-full space-y-4 mb-10">
+                    <label class="block text-sm font-medium text-gray-300 mb-1" data-i18n="lang_select">언어 선택 (Select Language)</label>
+                    <div class="relative">
+                        <select id="lang-selector" onchange="changeLanguage(this.value)" class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl py-4 pl-4 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
+                            <option value="ko">한국어 (Korean)</option>
+                            <option value="en">English (USA/Global)</option>
+                            <option value="zh">中文 (China)</option>
+                            <option value="vi">Tiếng Việt (Vietnam)</option>
+                            <option value="th">ไทย (Thailand)</option>
+                            <option value="ja">日本語 (Japan)</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="login()" class="w-full bg-white text-black font-semibold rounded-xl py-4 hover:bg-gray-200 transition-colors flex justify-center items-center gap-2">
+                    <span data-i18n="btn_start">시작하기</span>
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= MAIN APP VIEW ================= -->
+        <div id="view-main" class="view-section bg-gray-950">
+            
+            <header id="main-header" class="flex justify-between items-center p-5 pt-8 bg-gray-950/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-800">
+                <div class="flex items-center gap-3">
+                    <button id="btn-back" onclick="goBack()" class="hidden text-white p-1 hover:bg-gray-800 rounded-lg transition-colors">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                    </button>
+                    <h2 id="header-title" class="text-xl font-bold" data-i18n="tab_home">홈</h2>
+                </div>
+                <button class="relative p-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors">
+                    <i data-lucide="bell" class="w-5 h-5 text-gray-300"></i>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-gray-800"></span>
+                </button>
+            </header>
+
+            <main class="flex-1 overflow-y-auto hide-scroll pb-24 relative">
+                
+                <!-- 1. HOME TAB -->
+                <div id="tab-home" class="tab-content block p-5 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm" data-i18n="welcome">환영합니다!</p>
+                            <h3 class="text-2xl font-bold">Alex 👋</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center overflow-hidden border border-gray-700">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Profile" class="w-full h-full">
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-4 border border-gray-700 flex justify-between items-center shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="cloud-sun" class="w-8 h-8 text-yellow-400"></i>
+                            <div>
+                                <p class="text-xs text-gray-400" data-i18n="seoul">서울, 대한민국</p>
+                                <p class="font-semibold" data-i18n="weather">맑음, 24°C</p>
+                            </div>
+                        </div>
+                        <div class="h-8 w-px bg-gray-700"></div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-400">USD/KRW</p>
+                            <p class="font-semibold text-green-400">₩ 1,350</p>
+                        </div>
+                    </div>
+
+                    <h4 class="font-semibold text-lg mt-6 mb-3" data-i18n="quick_run">빠른 실행</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="switchTab('nav')" class="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-gray-800 transition-colors">
+                            <div class="bg-blue-500/20 p-3 rounded-full text-blue-500"><i data-lucide="map" class="w-6 h-6"></i></div>
+                            <span class="text-sm font-medium" data-i18n="nav_facility">시설 내비게이션</span>
+                        </button>
+                        <button onclick="switchTab('pay')" class="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-gray-800 transition-colors">
+                            <div class="bg-green-500/20 p-3 rounded-full text-green-500"><i data-lucide="scan-barcode" class="w-6 h-6"></i></div>
+                            <span class="text-sm font-medium" data-i18n="nav_pay">바코드 결제</span>
+                        </button>
+                        <button onclick="switchTab('transit')" class="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-gray-800 transition-colors">
+                            <div class="bg-orange-500/20 p-3 rounded-full text-orange-500"><i data-lucide="train-front" class="w-6 h-6"></i></div>
+                            <span class="text-sm font-medium" data-i18n="nav_transit">대중교통 트래커</span>
+                        </button>
+                        <button onclick="switchTab('report')" class="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-gray-800 transition-colors">
+                            <div class="bg-purple-500/20 p-3 rounded-full text-purple-500"><i data-lucide="message-square-warning" class="w-6 h-6"></i></div>
+                            <span class="text-sm font-medium" data-i18n="nav_report">인프라 민원</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. NAVIGATION TAB (Main) -->
+                <div id="tab-nav" class="tab-content hidden p-5 space-y-6">
+                    <div class="relative">
+                        <input type="text" data-i18n-placeholder="search_placeholder" placeholder="병원, 관공서 검색..." class="w-full bg-gray-900 border border-gray-700 text-white rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-primary">
+                        <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                    </div>
+
+                    <!-- 지도 영역 추가 -->
+                    <div class="relative w-full h-56 rounded-xl overflow-hidden border border-gray-800 shadow-lg">
+                        <div id="nav-map" class="w-full h-full z-0"></div>
+                        <!-- GPS 현재 위치 새로고침 버튼 -->
+                        <button onclick="getCurrentLocation()" class="absolute bottom-3 right-3 z-[400] bg-gray-800 border border-gray-700 text-white p-2.5 rounded-full shadow-lg hover:bg-gray-700 transition-colors focus:outline-none">
+                            <i data-lucide="crosshair" class="w-5 h-5 text-primary"></i>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="openSubView('nav-med')" class="text-left bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-start gap-3 hover:bg-gray-800">
+                            <div class="bg-red-500/20 p-2 rounded-lg text-red-400"><i data-lucide="stethoscope" class="w-5 h-5"></i></div>
+                            <div>
+                                <h5 class="font-semibold text-sm" data-i18n="cat_medical">의료/건강</h5>
+                                <p class="text-xs text-gray-500">외국어 진료</p>
+                            </div>
+                        </button>
+                        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-start gap-3 opacity-50">
+                            <div class="bg-blue-500/20 p-2 rounded-lg text-blue-400"><i data-lucide="building-2" class="w-5 h-5"></i></div>
+                            <div><h5 class="font-semibold text-sm" data-i18n="cat_public">공공/행정</h5></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2-1. NAVIGATION DETAIL (Sub-view) -->
+                <div id="tab-nav-med" class="tab-content hidden p-5 space-y-4">
+                    <h3 class="font-bold text-lg mb-4" data-i18n="med_list_title">다국어 지원 병원</h3>
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
+                        <div class="flex justify-between items-start">
+                            <div class="flex gap-3">
+                                <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center shrink-0"><i data-lucide="hospital" class="w-6 h-6 text-red-400"></i></div>
+                                <div>
+                                    <p class="font-medium">Seoul Global Clinic</p>
+                                    <p class="text-xs text-gray-400 mt-1">English, 中文, 日本語</p>
+                                    <p class="text-xs text-gray-500 mt-1">강남구 테헤란로 123 • 1.2km</p>
+                                </div>
+                            </div>
+                            <button class="bg-primary/20 text-primary p-2 rounded-full"><i data-lucide="phone" class="w-4 h-4"></i></button>
+                        </div>
+                        <button onclick="showCustomToast('경로 안내를 시작합니다.')" class="w-full bg-gray-800 py-2 rounded-lg text-sm text-center text-primary mt-2 flex justify-center items-center gap-1">
+                            <i data-lucide="navigation" class="w-4 h-4"></i> <span data-i18n="btn_navigate">길찾기</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. PAY TAB (Main) -->
+                <div id="tab-pay" class="tab-content hidden p-5 space-y-6">
+                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 border border-gray-700 shadow-xl relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <span class="text-gray-400 text-sm font-medium">For Foreigners Pay</span>
+                            <i data-lucide="nfc" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="mb-6">
+                            <p class="text-gray-400 text-sm mb-1" data-i18n="balance">사용 가능 금액</p>
+                            <h2 class="text-3xl font-bold tracking-tight">₩ 125,400 <span class="text-sm font-normal text-gray-500 ml-1">KRW</span></h2>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl p-4 flex flex-col items-center justify-center mt-4">
+                            <div class="h-16 w-full flex justify-center overflow-hidden mb-2">
+                                <div class="barcode-line w-[4px]"></div><div class="barcode-line w-[2px]"></div><div class="barcode-line w-[6px]"></div>
+                                <div class="barcode-line w-[1px]"></div><div class="barcode-line w-[5px]"></div><div class="barcode-line w-[2px]"></div>
+                                <div class="barcode-line w-[4px]"></div><div class="barcode-line w-[3px]"></div><div class="barcode-line w-[1px]"></div>
+                            </div>
+                            <p class="text-black font-mono tracking-widest text-sm font-bold">8291 0023 4419 8832</p>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="openSubView('pay-recharge')" class="flex-1 bg-gray-900 border border-gray-800 py-3 rounded-xl text-sm font-medium flex justify-center items-center gap-2 hover:bg-gray-800">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> <span data-i18n="btn_recharge">충전하기</span>
+                        </button>
+                        <button class="flex-1 bg-gray-900 border border-gray-800 py-3 rounded-xl text-sm font-medium flex justify-center items-center gap-2 opacity-50">
+                            <i data-lucide="arrow-left-right" class="w-4 h-4"></i> <span data-i18n="btn_transfer">송금</span>
+                        </button>
+                    </div>
+
+                    <div class="mt-8">
+                        <h4 class="font-semibold mb-4" data-i18n="history">지출 내역</h4>
+                        <div class="space-y-4">
+                            <div class="flex justify-between border-b border-gray-800 pb-3">
+                                <div class="flex gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-xl">🏪</div>
+                                    <div>
+                                        <p class="font-medium text-sm">GS25 Convenience Store</p>
+                                        <p class="text-xs text-gray-500">원문: GS25 편의점</p>
+                                    </div>
+                                </div>
+                                <p class="font-semibold">- ₩ 4,500</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3-1. PAY RECHARGE (Sub-view) -->
+                <div id="tab-pay-recharge" class="tab-content hidden p-5 space-y-6 text-center">
+                    <p class="text-gray-400 mt-10" data-i18n="enter_amount">충전할 금액을 입력하세요</p>
+                    <h2 class="text-5xl font-bold mb-10">₩ <span id="recharge-amount">0</span></h2>
+                    
+                    <div class="grid grid-cols-3 gap-3 max-w-xs mx-auto mb-10">
+                        <button onclick="addAmount(10000)" class="bg-gray-900 border border-gray-800 py-3 rounded-xl font-medium hover:bg-gray-800">+1만</button>
+                        <button onclick="addAmount(50000)" class="bg-gray-900 border border-gray-800 py-3 rounded-xl font-medium hover:bg-gray-800">+5만</button>
+                        <button onclick="addAmount(100000)" class="bg-gray-900 border border-gray-800 py-3 rounded-xl font-medium hover:bg-gray-800">+10만</button>
+                    </div>
+
+                    <button onclick="processRecharge()" class="w-full bg-primary text-white font-semibold rounded-xl py-4 hover:bg-blue-600 transition-colors shadow-lg shadow-primary/30">
+                        <span data-i18n="btn_recharge_now">충전 완료하기</span>
+                    </button>
+                </div>
+
+                <!-- 4. TRANSIT TAB (Main) -->
+                <div id="tab-transit" class="tab-content hidden p-0">
+                    <div class="h-64 w-full bg-gray-800 relative">
+                        <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=600&h=400" alt="Map" class="w-full h-full object-cover opacity-40 mix-blend-luminosity">
+                        <div class="absolute inset-0 bg-gradient-to-t from-gray-950 to-transparent"></div>
+                    </div>
+
+                    <div class="p-5 -mt-6 relative z-10 space-y-6">
+                        <div class="bg-gray-900 p-4 rounded-2xl border border-gray-800 shadow-xl">
+                            <div class="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-xl mb-4">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="bell-ring" class="w-5 h-5 text-primary"></i>
+                                    <div>
+                                        <p class="font-semibold text-sm text-primary" data-i18n="smart_alight">스마트 하차 알림</p>
+                                        <p class="text-[10px] text-gray-400">도착 1정거장 전 진동 알림</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold mb-3" data-i18n="near_stations">내 주변 정류장</h4>
+                            <div onclick="openSubView('transit-route')" class="bg-gray-900 border border-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-800 transition-colors">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">146</span>
+                                        <span class="font-medium text-sm">삼성역 방면</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm text-red-400 font-bold" data-i18n="arriving_soon">곧 도착 (Arriving soon)</p>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4-1. TRANSIT ROUTE (Sub-view) -->
+                <div id="tab-transit-route" class="tab-content hidden p-5">
+                    <div class="bg-blue-600 rounded-xl p-4 mb-6 text-white shadow-lg shadow-blue-600/20">
+                        <h2 class="text-2xl font-bold">146</h2>
+                        <p class="text-sm text-blue-200">강남역 → 삼성역</p>
+                    </div>
+
+                    <div class="relative ml-4 border-l-2 border-gray-800 pl-6 space-y-8 py-2">
+                        <div class="relative">
+                            <div class="absolute -left-[31px] bg-gray-800 border-2 border-gray-600 w-4 h-4 rounded-full"></div>
+                            <p class="text-gray-500 text-sm">신논현역 (Sinnonhyeon)</p>
+                        </div>
+                        <div class="relative">
+                            <!-- Current Bus Icon -->
+                            <div class="absolute -left-[39px] bg-red-500 border-2 border-gray-950 w-8 h-8 rounded-full flex items-center justify-center animate-bounce shadow-lg shadow-red-500/50">
+                                <i data-lucide="bus" class="w-4 h-4 text-white"></i>
+                            </div>
+                            <p class="text-white font-bold">강남역 (Gangnam Stn)</p>
+                            <p class="text-xs text-red-400 mt-1">현재 위치 (Current)</p>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute -left-[31px] bg-gray-900 border-2 border-gray-600 w-4 h-4 rounded-full"></div>
+                            <p class="text-gray-300 text-sm">역삼역 (Yeoksam Stn)</p>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute -left-[31px] bg-gray-900 border-2 border-gray-600 w-4 h-4 rounded-full"></div>
+                            <p class="text-gray-300 text-sm">선릉역 (Seolleung Stn)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. REPORT TAB (Main) -->
+                <div id="tab-report" class="tab-content hidden p-5 space-y-6">
+                    <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl">
+                        <h3 class="text-lg font-bold mb-1" data-i18n="report_title">불편사항 간편 신고</h3>
+                        <p class="text-sm text-gray-400 mb-6" data-i18n="report_desc">모국어로 쉽게 신고하세요.</p>
+                        
+                        <form class="space-y-4" onsubmit="event.preventDefault(); showCustomToast('접수되었습니다.');">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1" data-i18n="label_category">분류</label>
+                                <select class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg py-2 px-3 text-sm focus:outline-none">
+                                    <option>도로/교통 (Road/Traffic)</option>
+                                    <option>쓰레기 (Garbage)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1" data-i18n="label_photo">사진</label>
+                                <div class="w-full h-20 border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer">
+                                    <i data-lucide="camera" class="w-5 h-5 mb-1"></i>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-primary text-white font-semibold rounded-lg py-3 mt-2 hover:bg-blue-600 transition">
+                                <span data-i18n="btn_submit">신고 접수</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div>
+                        <h4 class="font-semibold mb-3" data-i18n="my_reports">내 민원 현황</h4>
+                        <div onclick="openSubView('report-detail')" class="bg-gray-900 border border-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-800">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-sm font-medium">강남역 신호등 고장</span>
+                                <span class="bg-yellow-500/20 text-yellow-500 text-xs px-2 py-1 rounded font-bold">처리중</span>
+                            </div>
+                            <p class="text-xs text-gray-500">2026.07.01 접수</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5-1. REPORT DETAIL (Sub-view) -->
+                <div id="tab-report-detail" class="tab-content hidden p-5 space-y-6">
+                    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-4">
+                            <h3 class="font-bold">강남역 11번 출구 신호등 고장</h3>
+                            <span class="bg-yellow-500/20 text-yellow-500 text-xs px-2 py-1 rounded font-bold">처리중</span>
+                        </div>
+                        
+                        <div class="w-full h-40 bg-gray-800 rounded-xl mb-4 flex items-center justify-center border border-gray-700">
+                            <i data-lucide="image" class="w-8 h-8 text-gray-600"></i>
+                            <span class="text-sm text-gray-500 ml-2">첨부 이미지</span>
+                        </div>
+                        
+                        <div class="space-y-2 mb-6">
+                            <p class="text-sm text-gray-300 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                                "The pedestrian traffic light at Gangnam station exit 11 is not working. It's dangerous."
+                            </p>
+                            <p class="text-xs text-primary bg-primary/10 p-2 rounded flex gap-2">
+                                <i data-lucide="languages" class="w-4 h-4"></i>
+                                [자동 번역] 강남역 11번 출구 횡단보도 보행자 신호등이 고장났습니다. 위험합니다.
+                            </p>
+                        </div>
+
+                        <div class="relative flex items-center justify-between w-full pt-2">
+                            <div class="absolute left-0 top-4 w-full h-1 bg-gray-800 z-0"></div>
+                            <div class="absolute left-0 top-4 w-1/2 h-1 bg-primary z-0"></div>
+                            
+                            <div class="relative z-10 flex flex-col items-center">
+                                <div class="w-4 h-4 bg-primary rounded-full border-2 border-gray-900"></div>
+                                <span class="text-xs text-gray-400 mt-2">접수</span>
+                            </div>
+                            <div class="relative z-10 flex flex-col items-center">
+                                <div class="w-4 h-4 bg-primary rounded-full border-2 border-gray-900 animate-pulse"></div>
+                                <span class="text-xs text-primary font-bold mt-2">담당배정</span>
+                            </div>
+                            <div class="relative z-10 flex flex-col items-center">
+                                <div class="w-4 h-4 bg-gray-700 rounded-full border-2 border-gray-900"></div>
+                                <span class="text-xs text-gray-500 mt-2">완료</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. MY PAGE TAB -->
+                <div id="tab-mypage" class="tab-content hidden p-5 space-y-6">
+                    <div class="flex items-center gap-4 bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Profile" class="w-16 h-16 bg-gray-800 rounded-full border border-gray-700">
+                        <div>
+                            <h3 class="font-bold text-lg">Alex Johnson</h3>
+                            <div class="flex gap-2 mt-2">
+                                <span class="bg-gray-800 text-xs px-2 py-0.5 rounded border border-gray-700">🇺🇸 USA</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 mb-2" data-i18n="settings">설정</h4>
+                        
+                        <button class="w-full flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="credit-card" class="w-5 h-5 text-gray-400"></i>
+                                <span class="text-sm font-medium" data-i18n="set_payment">결제 수단 관리</span>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500"></i>
+                        </button>
+
+                        <button class="w-full flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="file-text" class="w-5 h-5 text-gray-400"></i>
+                                <span class="text-sm font-medium" data-i18n="set_visa">비자 만료일 관리</span>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500"></i>
+                        </button>
+                    </div>
+
+                    <button onclick="logout()" class="w-full mt-6 py-4 text-red-500 font-medium text-sm hover:bg-red-500/10 rounded-xl transition-colors">
+                        <span data-i18n="btn_logout">로그아웃</span>
+                    </button>
+                </div>
+
+            </main>
+
+            <!-- 하단 네비게이션 -->
+            <nav class="bg-gray-950/90 backdrop-blur-lg border-t border-gray-800 fixed bottom-0 w-full max-w-md pb-safe z-50">
+                <div class="flex justify-around items-center p-2">
+                    <button onclick="switchTab('home')" class="nav-btn flex flex-col items-center p-2 text-primary w-16" data-target="home">
+                        <i data-lucide="home" class="w-6 h-6 mb-1"></i>
+                        <span class="text-[10px] font-medium" data-i18n="nav_home">홈</span>
+                    </button>
+                    <button onclick="switchTab('pay')" class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 w-16 transition-colors" data-target="pay">
+                        <i data-lucide="wallet" class="w-6 h-6 mb-1"></i>
+                        <span class="text-[10px] font-medium" data-i18n="nav_pay_short">결제</span>
+                    </button>
+                    <button onclick="switchTab('transit')" class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 w-16 transition-colors" data-target="transit">
+                        <i data-lucide="bus-front" class="w-6 h-6 mb-1"></i>
+                        <span class="text-[10px] font-medium" data-i18n="nav_transit_short">교통</span>
+                    </button>
+                    <button onclick="switchTab('mypage')" class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 w-16 transition-colors" data-target="mypage">
+                        <i data-lucide="user" class="w-6 h-6 mb-1"></i>
+                        <span class="text-[10px] font-medium" data-i18n="nav_mypage">마이</span>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 다국어 지원 (i18n) 설정 ---
+        const translations = {
+            'ko': {
+                'app_desc': '한국 생활의 모든 것을 하나로', 'lang_select': '언어 선택', 'btn_start': '시작하기',
+                'tab_home': '홈', 'welcome': '환영합니다!', 'seoul': '서울, 대한민국', 'weather': '맑음, 24°C',
+                'quick_run': '빠른 실행', 'nav_facility': '시설 내비게이션', 'nav_pay': '바코드 결제', 
+                'nav_transit': '대중교통 트래커', 'nav_report': '인프라 민원', 'search_placeholder': '병원, 관공서 검색...',
+                'cat_medical': '의료/건강', 'cat_public': '공공/행정', 'med_list_title': '다국어 지원 병원',
+                'btn_navigate': '길찾기 시작', 'balance': '사용 가능 금액', 'btn_recharge': '충전하기', 
+                'btn_transfer': '송금', 'history': '지출 내역', 'enter_amount': '충전할 금액을 선택하세요',
+                'btn_recharge_now': '충전 완료하기', 'smart_alight': '스마트 하차 알림', 'near_stations': '내 주변 정류장',
+                'arriving_soon': '곧 도착', 'report_title': '불편사항 간편 신고', 'report_desc': '모국어로 쉽게 신고하세요.',
+                'label_category': '분류', 'label_photo': '사진 첨부', 'btn_submit': '신고 접수',
+                'my_reports': '내 민원 현황', 'settings': '설정 (Settings)', 'set_payment': '결제 수단 관리',
+                'set_visa': '비자 만료일 관리', 'btn_logout': '로그아웃',
+                'nav_home': '홈', 'nav_pay_short': '결제', 'nav_transit_short': '교통', 'nav_mypage': '마이'
+            },
+            'en': {
+                'app_desc': 'Your all-in-one life assistant in Korea', 'lang_select': 'Select Language', 'btn_start': 'Get Started',
+                'tab_home': 'Home', 'welcome': 'Welcome!', 'seoul': 'Seoul, Korea', 'weather': 'Clear, 24°C',
+                'quick_run': 'Quick Actions', 'nav_facility': 'Facility Nav', 'nav_pay': 'Barcode Pay', 
+                'nav_transit': 'Transit Tracker', 'nav_report': 'Report Issue', 'search_placeholder': 'Search hospitals, offices...',
+                'cat_medical': 'Medical/Health', 'cat_public': 'Public/Admin', 'med_list_title': 'Multilingual Hospitals',
+                'btn_navigate': 'Start Navigation', 'balance': 'Available Balance', 'btn_recharge': 'Recharge', 
+                'btn_transfer': 'Transfer', 'history': 'Payment History', 'enter_amount': 'Select amount to recharge',
+                'btn_recharge_now': 'Complete Recharge', 'smart_alight': 'Smart Alight Alert', 'near_stations': 'Nearby Stations',
+                'arriving_soon': 'Arriving soon', 'report_title': 'Easy Report', 'report_desc': 'Report easily in your language.',
+                'label_category': 'Category', 'label_photo': 'Add Photo', 'btn_submit': 'Submit',
+                'my_reports': 'My Reports Status', 'settings': 'Settings', 'set_payment': 'Payment Methods',
+                'set_visa': 'Visa Status Tracking', 'btn_logout': 'Logout',
+                'nav_home': 'Home', 'nav_pay_short': 'Pay', 'nav_transit_short': 'Transit', 'nav_mypage': 'My'
+            }
+        };
+
+        let currentLang = 'ko';
+
+        function changeLanguage(lang) {
+            // 지원하지 않는 언어 선택 시 영어로 폴백(fallback)
+            currentLang = translations[lang] ? lang : 'en'; 
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang][key]) {
+                    el.innerText = translations[currentLang][key];
+                }
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (translations[currentLang][key]) {
+                    el.placeholder = translations[currentLang][key];
+                }
+            });
+            
+            // 헤더 업데이트
+            const activeTabId = viewHistory[viewHistory.length - 1];
+            updateHeaderTitle(activeTabId);
+        }
+
+
+        // --- 2. 뷰 전환 & 라우팅 로직 (상세 화면 지원) ---
+        lucide.createIcons();
+        let viewHistory = ['home']; // 화면 이동 히스토리 스택
+
+        const headerTitles = {
+            'home': 'tab_home', 'nav': 'nav_facility', 'nav-med': 'cat_medical',
+            'pay': 'nav_pay', 'pay-recharge': 'btn_recharge',
+            'transit': 'nav_transit', 'transit-route': 'nav_transit_short',
+            'report': 'nav_report', 'report-detail': 'my_reports', 'mypage': 'nav_mypage'
+        };
+
+        function switchView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        function login() { switchView('view-main'); switchTab('home'); }
+        function logout() { switchView('view-login'); viewHistory = ['home']; }
+
+        // 하단 탭 메인 메뉴 전환 (히스토리 초기화)
+        function switchTab(tabId) {
+            viewHistory = [tabId];
+            renderCurrentView();
+        }
+
+        // 서브 뷰(상세 화면) 열기 (히스토리 스택 추가)
+        function openSubView(viewId) {
+            viewHistory.push(viewId);
+            renderCurrentView();
+        }
+
+        // 뒤로가기
+        function goBack() {
+            if (viewHistory.length > 1) {
+                viewHistory.pop();
+                renderCurrentView();
+            }
+        }
+
+        function renderCurrentView() {
+            const currentTabId = viewHistory[viewHistory.length - 1];
+            
+            // 모든 탭 숨기기
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.add('hidden'); el.classList.remove('block');
+            });
+            // 현재 탭 표시
+            document.getElementById('tab-' + currentTabId).classList.remove('hidden');
+            document.getElementById('tab-' + currentTabId).classList.add('block');
+
+            // --- 지도 사이즈 재계산 및 초기화 로직 ---
+            if (currentTabId === 'nav') {
+                setTimeout(() => {
+                    if (!map) {
+                        getCurrentLocation(); // 처음 탭이 열릴 때 GPS 위치로 지도 초기화
+                    } else {
+                        map.invalidateSize(); // 탭 전환 시 화면 깨짐 방지
+                    }
+                }, 100);
+            }
+
+            updateHeaderTitle(currentTabId);
+
+            // 뒤로가기 버튼 토글 (루트 메뉴면 숨김)
+            const rootTabs = ['home', 'pay', 'transit', 'report', 'mypage'];
+            if (rootTabs.includes(currentTabId) || viewHistory.length === 1) {
+                document.getElementById('btn-back').classList.add('hidden');
+            } else {
+                document.getElementById('btn-back').classList.remove('hidden');
+            }
+
+            // 하단 네비게이션 아이콘 활성화 (루트 메뉴 기반)
+            const activeRoot = viewHistory[0]; // 스택의 첫 번째가 속한 메인 메뉴
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-primary'); btn.classList.add('text-gray-500');
+                if (btn.dataset.target === activeRoot || btn.dataset.target === currentTabId) {
+                    btn.classList.add('text-primary'); btn.classList.remove('text-gray-500');
+                }
+            });
+        }
+
+        function updateHeaderTitle(tabId) {
+            const titleKey = headerTitles[tabId] || 'tab_home';
+            document.getElementById('header-title').innerText = translations[currentLang][titleKey] || translations['en'][titleKey];
+        }
+
+
+        // --- 3. UI 인터랙션 도우미 함수 ---
+        
+        // 커스텀 토스트 (alert 대체)
+        function showCustomToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-4');
+            }, 2500);
+        }
+
+        // 충전 로직 데모
+        let tempAmount = 0;
+        function addAmount(val) {
+            tempAmount += val;
+            document.getElementById('recharge-amount').innerText = tempAmount.toLocaleString();
+        }
+        function processRecharge() {
+            if(tempAmount === 0) return showCustomToast(currentLang === 'ko' ? '금액을 선택해주세요.' : 'Please select amount.');
+            showCustomToast(currentLang === 'ko' ? `${tempAmount.toLocaleString()}원 충전 성공!` : `Recharged ${tempAmount.toLocaleString()} KRW!`);
+            tempAmount = 0;
+            document.getElementById('recharge-amount').innerText = "0";
+            setTimeout(() => goBack(), 1000);
+        }
+
+        // --- 4. 지도 (Leaflet.js) 및 GPS 관련 로직 ---
+        let map;
+        let userMarker;
+
+        function initMap(lat = 37.4979, lng = 127.0276) { // 기본값: 강남역 위치
+            if (!document.getElementById('nav-map')) return;
+            
+            if (!map) {
+                // 지도 생성 및 뷰 설정 (다크 테마 타일맵 적용)
+                map = L.map('nav-map', { zoomControl: false }).setView([lat, lng], 15);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                // 현재 위치 마커 UI 디자인 (CSS 기반 파란색 펄스)
+                const customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="w-5 h-5 bg-primary rounded-full border-[3px] border-white shadow-[0_0_15px_rgba(59,130,246,0.6)] animate-pulse"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                userMarker = L.marker([lat, lng], {icon: customIcon}).addTo(map);
+            } else {
+                // 이미 생성된 지도가 있다면 위치만 업데이트
+                map.setView([lat, lng], 15);
+                userMarker.setLatLng([lat, lng]);
+                map.invalidateSize();
+            }
+        }
+
+        function getCurrentLocation() {
+            showCustomToast(currentLang === 'ko' ? 'GPS 위치를 찾는 중...' : 'Locating GPS...');
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    initMap(lat, lng);
+                    showCustomToast(currentLang === 'ko' ? '현재 위치로 이동했습니다.' : 'Moved to current location.');
+                }, function(error) {
+                    console.warn("GPS Error:", error);
+                    showCustomToast(currentLang === 'ko' ? '위치 권한이 거부되었습니다. (기본 위치 표시)' : 'GPS denied. Showing default location.');
+                    initMap(); // 에러 시 기본 위치(강남역) 로드
+                }, { timeout: 6000 }); 
+            } else {
+                showCustomToast('GPS is not supported.');
+                initMap();
+            }
+        }
+
+        // 초기 실행 세팅
+        changeLanguage('ko');
+    </script>
+</body>
+</html>
